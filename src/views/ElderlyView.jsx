@@ -46,8 +46,8 @@ function OnboardingView({ state }) {
                                 key={opt}
                                 onClick={() => setElderlyProfile(p => ({ ...p, [field.key]: opt }))}
                                 className={`w-full h-16 rounded-xl text-xl font-semibold transition-all ${elderlyProfile[field.key] === opt
-                                        ? 'bg-primary text-white shadow-lg shadow-primary/20'
-                                        : 'bg-white text-slate-900 border border-slate-200 hover:border-primary'
+                                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                                    : 'bg-white text-slate-900 border border-slate-200 hover:border-primary'
                                     }`}
                             >
                                 {opt}
@@ -261,7 +261,7 @@ function ProcessingView() {
 // RESULT VIEW (AI Analysis)
 // ════════════════════════════════════════
 function ResultView({ state }) {
-    const { aiResult, handleSaveEntry, navigateTo, isSyncing } = state
+    const { aiResult, navigateTo } = state
 
     if (!aiResult) return <ProcessingView />
 
@@ -272,6 +272,17 @@ function ResultView({ state }) {
             </div>
 
             <div className="flex flex-1 flex-col px-6 py-4 gap-5">
+                {/* Auto-sent confirmation */}
+                <div className="bg-green-50 rounded-2xl p-4 border border-green-200 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                        <Icon name="check_circle" style={{ fontSize: '24px' }} className="text-green-600" />
+                    </div>
+                    <div>
+                        <p className="text-green-800 text-base font-bold">ส่งข้อมูลให้ญาติแล้ว</p>
+                        <p className="text-green-600 text-sm">ข้อมูลถูกบันทึกและส่งให้ลูกหลานอัตโนมัติ</p>
+                    </div>
+                </div>
+
                 {/* Clinical Summary Card */}
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
                     <div className="flex items-center gap-3 mb-4">
@@ -323,30 +334,14 @@ function ResultView({ state }) {
                 </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-col gap-4 px-6 pb-10 w-full">
-                <button
-                    onClick={handleSaveEntry}
-                    disabled={isSyncing}
-                    className="flex w-full items-center justify-center rounded-xl h-16 px-6 bg-primary text-white text-xl font-bold hover:bg-primary-dark transition-colors shadow-md gap-2 active:scale-[0.97] disabled:bg-slate-300"
-                >
-                    {isSyncing ? (
-                        <>
-                            <div className="w-6 h-6 rounded-full border-2 border-white/30 border-t-white animate-spin-slow" />
-                            <span>กำลังส่งข้อมูล...</span>
-                        </>
-                    ) : (
-                        <>
-                            <Icon name="send" style={{ fontSize: '24px' }} />
-                            <span>ส่งข้อมูลให้ลูกหลาน</span>
-                        </>
-                    )}
-                </button>
+            {/* Back Button */}
+            <div className="px-6 pb-10 w-full">
                 <button
                     onClick={() => navigateTo('ELDERLY_DASHBOARD')}
-                    className="flex w-full items-center justify-center rounded-xl h-16 px-6 bg-slate-200 text-slate-900 text-xl font-bold hover:bg-slate-300 transition-colors"
+                    className="flex w-full items-center justify-center rounded-xl h-16 px-6 bg-primary text-white text-xl font-bold hover:bg-primary-dark transition-colors shadow-md gap-2 active:scale-[0.97]"
                 >
-                    ยกเลิก
+                    <Icon name="home" style={{ fontSize: '24px' }} />
+                    <span>กลับหน้าหลัก</span>
                 </button>
             </div>
         </div>
