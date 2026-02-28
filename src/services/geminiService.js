@@ -2,7 +2,7 @@
 // Analyzes Thai symptom transcripts using Gemini API
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
 
 const SYSTEM_PROMPT = `You are a Medical Assistant in Thailand. Your job is to analyze health symptom descriptions from elderly patients.
 
