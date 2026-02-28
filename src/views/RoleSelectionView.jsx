@@ -43,6 +43,22 @@ export default function RoleSelectionView({ onSelectRole }) {
                         </div>
                     </div>
                 </button>
+
+                {/* Recovery / Login Button */}
+                <button
+                    onClick={() => onSelectRole('recovery')}
+                    className="w-full bg-white hover:bg-slate-50 text-slate-900 rounded-2xl p-5 text-left transition-all active:scale-[0.98] shadow-sm border border-dashed border-slate-300"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
+                            <Icon name="login" style={{ fontSize: '28px' }} className="text-green-600" />
+                        </div>
+                        <div>
+                            <p className="text-lg font-bold text-slate-900">เข้าสู่ระบบ</p>
+                            <p className="text-sm text-slate-500 mt-0.5">กู้คืนโปรไฟล์ด้วยเบอร์โทรศัพท์</p>
+                        </div>
+                    </div>
+                </button>
             </div>
         </div>
     )

@@ -5,6 +5,7 @@ const onboardingFields = [
     { key: 'name', label: 'ชื่อของคุณ', placeholder: 'กรอกชื่อ-นามสกุล', icon: 'person', type: 'text' },
     { key: 'age', label: 'อายุของคุณ', placeholder: 'กรอกอายุ (ปี)', icon: 'cake', type: 'number' },
     { key: 'gender', label: 'เพศของคุณ', placeholder: '', icon: 'wc', type: 'select', options: ['ชาย', 'หญิง', 'อื่นๆ'] },
+    { key: 'phone', label: 'เบอร์โทรศัพท์', placeholder: '08X-XXX-XXXX', icon: 'phone', type: 'tel' },
     { key: 'diseases', label: 'โรคประจำตัว', placeholder: 'เช่น เบาหวาน, ความดันสูง', icon: 'healing', type: 'text' },
     { key: 'medications', label: 'ยาที่ทานประจำ', placeholder: 'เช่น Metformin, Amlodipine', icon: 'medication', type: 'text' },
 ]
@@ -23,7 +24,7 @@ function OnboardingView({ state }) {
                     <Icon name="arrow_back" style={{ fontSize: '28px' }} className="text-slate-900" />
                 </button>
                 <div className="flex gap-1.5">
-                    {[1, 2, 3, 4, 5].map(i => (
+                    {[1, 2, 3, 4, 5, 6].map(i => (
                         <div key={i} className={`h-2 rounded-full transition-all duration-300 ${i <= onboardingStep ? 'w-8 bg-primary' : 'w-2 bg-slate-200'}`} />
                     ))}
                 </div>
@@ -36,7 +37,7 @@ function OnboardingView({ state }) {
                         <Icon name={field.icon} style={{ fontSize: '40px' }} className="text-primary" />
                     </div>
                     <h1 className="text-[28px] font-bold text-slate-900 text-center leading-tight">{field.label}</h1>
-                    <p className="text-lg text-slate-500 text-center">ขั้นตอนที่ {onboardingStep} จาก 5</p>
+                    <p className="text-lg text-slate-500 text-center">ขั้นตอนที่ {onboardingStep} จาก 6</p>
                 </div>
 
                 {field.type === 'select' ? (
@@ -71,8 +72,8 @@ function OnboardingView({ state }) {
                     disabled={!elderlyProfile[field.key] || isSyncing}
                     className="w-full h-16 rounded-xl bg-primary hover:bg-primary-dark disabled:bg-slate-200 disabled:text-slate-400 text-white text-xl font-bold shadow-lg shadow-primary/25 transition-all active:scale-[0.97] flex items-center justify-center gap-2"
                 >
-                    {isSyncing ? 'กำลังบันทึก...' : onboardingStep === 5 ? 'เริ่มใช้งาน' : 'ถัดไป'}
-                    {!isSyncing && <Icon name={onboardingStep === 5 ? 'check_circle' : 'arrow_forward'} style={{ fontSize: '24px' }} />}
+                    {isSyncing ? 'กำลังบันทึก...' : onboardingStep === 6 ? 'เริ่มใช้งาน' : 'ถัดไป'}
+                    {!isSyncing && <Icon name={onboardingStep === 6 ? 'check_circle' : 'arrow_forward'} style={{ fontSize: '24px' }} />}
                 </button>
             </footer>
         </div>
@@ -143,12 +144,10 @@ function DashboardView({ state }) {
 }
 
 // ════════════════════════════════════════
-// RECORDING VIEW (Real-time STT)
+// RECORDING VIEW (Audio Capture)
 // ════════════════════════════════════════
 function RecordingView({ state }) {
-    const { recordingTime, formatTime, handleStopRecording, handleCancelRecording, transcript, interimTranscript, speechError } = state
-
-    const displayText = transcript || interimTranscript || ''
+    const { recordingTime, formatTime, handleStopRecording, handleCancelRecording, audioError } = state
 
     return (
         <div className="flex flex-col min-h-screen bg-background-light">
@@ -163,6 +162,7 @@ function RecordingView({ state }) {
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-bold text-slate-900 mb-4">กำลังฟังคุณอยู่...</h1>
                     <p className="text-xl text-slate-600 font-medium">กรุณาพูดอาการของคุณ</p>
+                    <p className="text-base text-slate-400 mt-2">AI จะวิเคราะห์เสียงโดยตรง รองรับภาษาถิ่น</p>
                 </div>
 
                 {/* Waveform */}
@@ -180,27 +180,20 @@ function RecordingView({ state }) {
                     ))}
                 </div>
 
-                {/* Live Transcript */}
-                <div className="w-full max-w-sm bg-white rounded-2xl p-5 shadow-sm border border-slate-200 mb-6 min-h-[100px]">
+                {/* Audio Status Card */}
+                <div className="w-full max-w-sm bg-white rounded-2xl p-5 shadow-sm border border-slate-200 mb-6">
                     <div className="flex items-center gap-2 mb-3">
-                        <Icon name="record_voice_over" style={{ fontSize: '20px' }} className="text-primary" />
-                        <span className="text-sm font-semibold text-primary">ข้อความที่ได้ยิน</span>
+                        <Icon name="graphic_eq" style={{ fontSize: '20px' }} className="text-primary" />
+                        <span className="text-sm font-semibold text-primary">บันทึกเสียงอยู่</span>
                         <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse ml-auto" />
                     </div>
-                    {displayText ? (
-                        <p className="text-slate-800 text-lg leading-relaxed">
-                            {transcript && <span>{transcript}</span>}
-                            {interimTranscript && <span className="text-slate-400">{interimTranscript}</span>}
-                        </p>
-                    ) : (
-                        <p className="text-slate-400 text-base italic">รอรับเสียง...</p>
-                    )}
+                    <p className="text-slate-500 text-base">เสียงจะถูกส่งให้ AI วิเคราะห์โดยตรง<br />ไม่ต้องพิมพ์ข้อความ</p>
                 </div>
 
                 {/* Error message */}
-                {speechError && (
+                {audioError && (
                     <div className="w-full max-w-sm bg-red-50 rounded-xl p-4 mb-4 border border-red-200">
-                        <p className="text-red-600 text-base text-center">{speechError}</p>
+                        <p className="text-red-600 text-base text-center">{audioError}</p>
                     </div>
                 )}
 
@@ -349,6 +342,62 @@ function ResultView({ state }) {
 }
 
 // ════════════════════════════════════════
+// RECOVERY VIEW (Login by Phone)
+// ════════════════════════════════════════
+function RecoveryView({ state }) {
+    const { recoveryPhone, setRecoveryPhone, handleRecoveryLogin, navigateTo, isSyncing } = state
+
+    return (
+        <div className="flex flex-col min-h-screen">
+            <header className="flex items-center justify-between p-4 pt-8">
+                <button onClick={() => navigateTo('ROLE_SELECTION')} className="p-2 rounded-full hover:bg-slate-100 transition-colors">
+                    <Icon name="arrow_back" style={{ fontSize: '28px' }} className="text-slate-900" />
+                </button>
+                <div className="w-10" />
+            </header>
+
+            <main className="flex-1 flex flex-col justify-center px-6 py-8 gap-8">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center">
+                        <Icon name="login" style={{ fontSize: '40px' }} className="text-green-600" />
+                    </div>
+                    <h1 className="text-[28px] font-bold text-slate-900 text-center leading-tight">เข้าสู่ระบบ</h1>
+                    <p className="text-lg text-slate-500 text-center">กรอกเบอร์โทรที่เคยลงทะเบียนไว้<br />เพื่อกู้คืนโปรไฟล์ของคุณ</p>
+                </div>
+
+                <input
+                    type="tel"
+                    placeholder="08X-XXX-XXXX"
+                    value={recoveryPhone}
+                    onChange={(e) => setRecoveryPhone(e.target.value)}
+                    className="w-full h-16 rounded-xl border border-slate-200 px-5 text-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-center tracking-widest"
+                />
+            </main>
+
+            <footer className="p-6 pb-10">
+                <button
+                    onClick={handleRecoveryLogin}
+                    disabled={recoveryPhone.replace(/[^0-9]/g, '').length < 9 || isSyncing}
+                    className="w-full h-16 rounded-xl bg-green-600 hover:bg-green-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xl font-bold shadow-lg shadow-green-600/25 transition-all active:scale-[0.97] flex items-center justify-center gap-2"
+                >
+                    {isSyncing ? (
+                        <>
+                            <div className="w-6 h-6 rounded-full border-2 border-white/30 border-t-white animate-spin-slow" />
+                            <span>กำลังค้นหา...</span>
+                        </>
+                    ) : (
+                        <>
+                            <Icon name="search" style={{ fontSize: '24px' }} />
+                            <span>ค้นหาโปรไฟล์</span>
+                        </>
+                    )}
+                </button>
+            </footer>
+        </div>
+    )
+}
+
+// ════════════════════════════════════════
 // MAIN ELDERLY VIEW (Router)
 // ════════════════════════════════════════
 export default function ElderlyView({ state }) {
@@ -358,6 +407,8 @@ export default function ElderlyView({ state }) {
         case 'ELDERLY_RECORDING': return <RecordingView state={state} />
         case 'ELDERLY_PROCESSING': return <ProcessingView />
         case 'ELDERLY_RESULT': return <ResultView state={state} />
+        case 'ELDERLY_RECOVERY': return <RecoveryView state={state} />
         default: return <DashboardView state={state} />
     }
 }
+
