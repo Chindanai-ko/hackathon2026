@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { signInAnon, onAuthChange } from '../config/firebase'
 import {
     generatePairingCode,
-    mockSummaries,
     formatDiaryEntry,
     saveElderlyProfile,
     saveDiaryEntry,
@@ -10,6 +9,8 @@ import {
     subscribeToDiaries,
     subscribeToDiariesByUid,
 } from '../services/diaryService'
+import { analyzeSymptoms } from '../services/geminiService'
+import useSpeechRecognition from './useSpeechRecognition'
 
 export default function useVoiceDiary() {
     // ─── Firebase Auth State ───
@@ -28,11 +29,14 @@ export default function useVoiceDiary() {
     })
     const [pairingCode, setPairingCode] = useState(() => generatePairingCode())
     const [entries, setEntries] = useState([])
-    const [currentMockIndex, setCurrentMockIndex] = useState(0)
 
     // Recording state
     const [recordingTime, setRecordingTime] = useState(0)
     const [isRecording, setIsRecording] = useState(false)
+
+    // AI state
+    const [aiResult, setAiResult] = useState(null)
+    const [isProcessingAI, setIsProcessingAI] = useState(false)
 
     // Relative state
     const [inputCode, setInputCode] = useState('')
@@ -41,6 +45,9 @@ export default function useVoiceDiary() {
 
     // Refs
     const unsubRef = useRef(null)
+
+    // Speech Recognition
+    const speech = useSpeechRecognition()
 
     // ═══════════════════════════════════
     // EFFECTS
@@ -129,44 +136,84 @@ export default function useVoiceDiary() {
         else navigateTo('ROLE_SELECTION')
     }
 
+    // ─── Recording Flow (Real STT + AI) ───
+
     const handleStartRecording = () => {
         setRecordingTime(0)
         setIsRecording(true)
+        setAiResult(null)
         navigateTo('ELDERLY_RECORDING')
+
+        // Start speech recognition with onStop callback
+        const started = speech.start(async (finalTranscript) => {
+            // Speech recognition ended (silence or manual stop)
+            setIsRecording(false)
+            navigateTo('ELDERLY_PROCESSING')
+            setIsProcessingAI(true)
+
+            try {
+                // Send transcript to Gemini AI
+                const result = await analyzeSymptoms(finalTranscript)
+                setAiResult(result)
+            } catch (err) {
+                console.error('AI analysis failed:', err)
+                setAiResult({
+                    original_dialect: finalTranscript,
+                    clinical_summary: finalTranscript || 'ไม่สามารถวิเคราะห์ได้',
+                    severity: 'ปกติ',
+                    severityColor: 'green',
+                    mood: 'ไม่ระบุ',
+                    advice: 'กรุณาปรึกษาแพทย์',
+                    transcript: finalTranscript,
+                })
+            }
+
+            setIsProcessingAI(false)
+            navigateTo('ELDERLY_RESULT')
+        })
+
+        if (!started) {
+            // Browser doesn't support speech recognition
+            setIsRecording(false)
+            navigateTo('ELDERLY_DASHBOARD')
+        }
     }
 
     const handleStopRecording = () => {
-        setIsRecording(false)
-        navigateTo('ELDERLY_PROCESSING')
-        setTimeout(() => navigateTo('ELDERLY_RESULT'), 2500)
+        // Manually stop speech recognition — the onStop callback handles the rest
+        speech.stop()
     }
 
     const handleCancelRecording = () => {
+        speech.stop()
         setIsRecording(false)
         navigateTo('ELDERLY_DASHBOARD')
     }
 
+    // ─── Save Entry (Real AI data) ───
+
     const handleSaveEntry = async () => {
-        if (!user) return
-        const mock = mockSummaries[currentMockIndex % mockSummaries.length]
+        if (!user || !aiResult) return
         setIsSyncing(true)
         try {
             await saveDiaryEntry({
                 elderlyId: user.uid,
                 pairingCode,
-                originalText: mock.transcript,
-                clinicalSummary: mock.summary,
-                severity: mock.severity,
-                severityColor: mock.severityColor,
-                mood: mock.mood,
+                originalText: aiResult.original_dialect || aiResult.transcript,
+                clinicalSummary: aiResult.clinical_summary,
+                severity: aiResult.severity,
+                severityColor: aiResult.severityColor,
+                mood: aiResult.mood,
+                advice: aiResult.advice,
             })
-            setCurrentMockIndex(i => i + 1)
         } catch (err) {
             console.error('Error saving diary entry:', err)
         }
         setIsSyncing(false)
         navigateTo('ELDERLY_DASHBOARD')
     }
+
+    // ─── Relative Handlers ───
 
     const handleKeypadPress = (digit) => {
         if (inputCode.length < 6) {
@@ -218,8 +265,6 @@ export default function useVoiceDiary() {
         return `${m}:${sec}`
     }
 
-    const getCurrentMock = () => mockSummaries[currentMockIndex % mockSummaries.length]
-
     // ═══════════════════════════════════
     // RETURN
     // ═══════════════════════════════════
@@ -238,11 +283,16 @@ export default function useVoiceDiary() {
         handleOnboardingNext, handleOnboardingBack,
         // Elderly - dashboard
         pairingCode, entries,
-        // Elderly - recording
+        // Elderly - recording (real STT)
         isRecording, recordingTime, formatTime,
         handleStartRecording, handleStopRecording, handleCancelRecording,
-        // Elderly - result
-        getCurrentMock, handleSaveEntry,
+        // Speech recognition state
+        transcript: speech.transcript,
+        interimTranscript: speech.interimTranscript,
+        speechError: speech.error,
+        // AI result
+        aiResult, isProcessingAI,
+        handleSaveEntry,
         // Relative
         inputCode, linkedProfile, linkedPairingCode,
         handleKeypadPress, handleKeypadDelete, handleLink,

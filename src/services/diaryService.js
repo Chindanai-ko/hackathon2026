@@ -57,6 +57,7 @@ export const formatDiaryEntry = (e) => ({
     severity: e.severity || 'ปกติ',
     severityColor: e.severityColor || 'green',
     mood: e.mood || '',
+    advice: e.advice || '',
 })
 
 // ─── localStorage Persistence ───

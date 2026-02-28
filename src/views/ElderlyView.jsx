@@ -143,10 +143,12 @@ function DashboardView({ state }) {
 }
 
 // ════════════════════════════════════════
-// RECORDING VIEW
+// RECORDING VIEW (Real-time STT)
 // ════════════════════════════════════════
 function RecordingView({ state }) {
-    const { recordingTime, formatTime, handleStopRecording, handleCancelRecording } = state
+    const { recordingTime, formatTime, handleStopRecording, handleCancelRecording, transcript, interimTranscript, speechError } = state
+
+    const displayText = transcript || interimTranscript || ''
 
     return (
         <div className="flex flex-col min-h-screen bg-background-light">
@@ -158,13 +160,13 @@ function RecordingView({ state }) {
             </header>
 
             <main className="flex-1 flex flex-col items-center justify-center w-full px-6">
-                <div className="text-center mb-12">
-                    <h1 className="text-4xl font-bold text-slate-900 mb-4">กำลังฟังอยู่...</h1>
+                <div className="text-center mb-8">
+                    <h1 className="text-4xl font-bold text-slate-900 mb-4">กำลังฟังคุณอยู่...</h1>
                     <p className="text-xl text-slate-600 font-medium">กรุณาพูดอาการของคุณ</p>
                 </div>
 
                 {/* Waveform */}
-                <div className="w-full max-w-sm h-48 flex items-center justify-center gap-1.5 mb-12">
+                <div className="w-full max-w-sm h-32 flex items-center justify-center gap-1.5 mb-8">
                     {[8, 12, 6, 16, 24, 36, 28, 14, 20, 10, 4, 8].map((h, i) => (
                         <div
                             key={i}
@@ -177,6 +179,30 @@ function RecordingView({ state }) {
                         />
                     ))}
                 </div>
+
+                {/* Live Transcript */}
+                <div className="w-full max-w-sm bg-white rounded-2xl p-5 shadow-sm border border-slate-200 mb-6 min-h-[100px]">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Icon name="record_voice_over" style={{ fontSize: '20px' }} className="text-primary" />
+                        <span className="text-sm font-semibold text-primary">ข้อความที่ได้ยิน</span>
+                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse ml-auto" />
+                    </div>
+                    {displayText ? (
+                        <p className="text-slate-800 text-lg leading-relaxed">
+                            {transcript && <span>{transcript}</span>}
+                            {interimTranscript && <span className="text-slate-400">{interimTranscript}</span>}
+                        </p>
+                    ) : (
+                        <p className="text-slate-400 text-base italic">รอรับเสียง...</p>
+                    )}
+                </div>
+
+                {/* Error message */}
+                {speechError && (
+                    <div className="w-full max-w-sm bg-red-50 rounded-xl p-4 mb-4 border border-red-200">
+                        <p className="text-red-600 text-base text-center">{speechError}</p>
+                    </div>
+                )}
 
                 {/* Timer Card */}
                 <div className="w-full max-w-sm bg-white rounded-xl p-4 shadow-sm border border-slate-100">
@@ -207,7 +233,7 @@ function RecordingView({ state }) {
 }
 
 // ════════════════════════════════════════
-// PROCESSING VIEW
+// PROCESSING VIEW (AI กำลังคิด...)
 // ════════════════════════════════════════
 function ProcessingView() {
     return (
@@ -219,8 +245,8 @@ function ProcessingView() {
                 </div>
             </div>
             <div className="text-center">
-                <h1 className="text-3xl font-bold text-slate-900 mb-3">กำลังสรุปผล...</h1>
-                <p className="text-lg text-slate-500">AI กำลังวิเคราะห์อาการของคุณ</p>
+                <h1 className="text-3xl font-bold text-slate-900 mb-3">AI กำลังคิด...</h1>
+                <p className="text-lg text-slate-500">กำลังวิเคราะห์อาการจากเสียงของคุณ</p>
             </div>
             <div className="flex gap-2">
                 {[0, 1, 2].map(i => (
@@ -232,43 +258,55 @@ function ProcessingView() {
 }
 
 // ════════════════════════════════════════
-// RESULT VIEW
+// RESULT VIEW (AI Analysis)
 // ════════════════════════════════════════
 function ResultView({ state }) {
-    const { getCurrentMock, handleSaveEntry, navigateTo, isSyncing } = state
-    const mock = getCurrentMock()
+    const { aiResult, handleSaveEntry, navigateTo, isSyncing } = state
+
+    if (!aiResult) return <ProcessingView />
 
     return (
         <div className="flex flex-col min-h-screen">
             <div className="flex items-center justify-center p-6 pt-8 pb-4">
-                <h2 className="text-slate-900 text-xl font-bold">ผลการวิเคราะห์</h2>
+                <h2 className="text-slate-900 text-xl font-bold">ผลการวิเคราะห์ AI</h2>
             </div>
 
-            <div className="flex flex-1 flex-col px-6 py-4 gap-6">
-                {/* Summary Card */}
+            <div className="flex flex-1 flex-col px-6 py-4 gap-5">
+                {/* Clinical Summary Card */}
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
                             <Icon name="summarize" style={{ fontSize: '28px' }} className="text-primary" />
                         </div>
                         <div>
-                            <p className="text-slate-500 text-sm">สรุปอาการ</p>
+                            <p className="text-slate-500 text-sm">สรุปอาการทางการแพทย์</p>
                             <div className="flex items-center gap-2">
                                 <p className="text-slate-900 text-lg font-bold">การวิเคราะห์ AI</p>
-                                <SeverityBadge severity={mock.severity} color={mock.severityColor} />
+                                <SeverityBadge severity={aiResult.severity} color={aiResult.severityColor} />
                             </div>
                         </div>
                     </div>
-                    <p className="text-slate-700 text-lg leading-relaxed">{mock.summary}</p>
+                    <p className="text-slate-700 text-lg leading-relaxed">{aiResult.clinical_summary}</p>
                 </div>
 
-                {/* Transcript Card */}
+                {/* Original Dialect Card */}
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
                     <div className="flex items-center gap-3 mb-3">
                         <Icon name="record_voice_over" style={{ fontSize: '24px' }} className="text-slate-400" />
                         <p className="text-slate-500 text-base font-medium">เสียงที่บันทึก</p>
                     </div>
-                    <p className="text-slate-600 text-base italic">"{mock.transcript}"</p>
+                    <p className="text-slate-600 text-base italic">"{aiResult.original_dialect}"</p>
+                </div>
+
+                {/* Advice Card */}
+                <div className="bg-green-50 rounded-2xl p-5 shadow-sm border border-green-200">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                            <Icon name="tips_and_updates" style={{ fontSize: '24px' }} className="text-green-600" />
+                        </div>
+                        <p className="text-green-800 text-base font-bold">คำแนะนำ</p>
+                    </div>
+                    <p className="text-green-700 text-base leading-relaxed">{aiResult.advice}</p>
                 </div>
 
                 {/* Mood Card */}
@@ -279,7 +317,7 @@ function ResultView({ state }) {
                         </div>
                         <div>
                             <p className="text-slate-500 text-sm">อารมณ์</p>
-                            <p className="text-slate-900 text-xl font-bold">{mock.mood}</p>
+                            <p className="text-slate-900 text-xl font-bold">{aiResult.mood}</p>
                         </div>
                     </div>
                 </div>
@@ -295,12 +333,12 @@ function ResultView({ state }) {
                     {isSyncing ? (
                         <>
                             <div className="w-6 h-6 rounded-full border-2 border-white/30 border-t-white animate-spin-slow" />
-                            <span>กำลังบันทึก...</span>
+                            <span>กำลังส่งข้อมูล...</span>
                         </>
                     ) : (
                         <>
-                            <Icon name="save" style={{ fontSize: '24px' }} />
-                            <span>บันทึกลงสมุดสุขภาพ</span>
+                            <Icon name="send" style={{ fontSize: '24px' }} />
+                            <span>ส่งข้อมูลให้ลูกหลาน</span>
                         </>
                     )}
                 </button>
