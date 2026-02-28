@@ -6,11 +6,12 @@ import {
     saveElderlyProfile,
     saveDiaryEntry,
     queryElderlyByPairingCode,
+    queryElderlyByPhone,
     subscribeToDiaries,
     subscribeToDiariesByUid,
 } from '../services/diaryService'
-import { analyzeSymptoms } from '../services/geminiService'
-import useSpeechRecognition from './useSpeechRecognition'
+import { analyzeAudio } from '../services/geminiService'
+import useAudioRecorder from './useAudioRecorder'
 
 export default function useVoiceDiary() {
     // ─── Firebase Auth State ───
@@ -25,7 +26,7 @@ export default function useVoiceDiary() {
     // Elderly state
     const [onboardingStep, setOnboardingStep] = useState(1)
     const [elderlyProfile, setElderlyProfile] = useState({
-        name: '', age: '', gender: '', diseases: '', medications: ''
+        name: '', age: '', gender: '', phone: '', diseases: '', medications: ''
     })
     const [pairingCode, setPairingCode] = useState(() => generatePairingCode())
     const [entries, setEntries] = useState([])
@@ -43,11 +44,14 @@ export default function useVoiceDiary() {
     const [linkedProfile, setLinkedProfile] = useState(null)
     const [linkedPairingCode, setLinkedPairingCode] = useState(null)
 
+    // Recovery state
+    const [recoveryPhone, setRecoveryPhone] = useState('')
+
     // Refs
     const unsubRef = useRef(null)
 
-    // Speech Recognition
-    const speech = useSpeechRecognition()
+    // Audio Recorder (MediaRecorder → base64 → Gemini multimodal)
+    const audioRecorder = useAudioRecorder()
 
     // ═══════════════════════════════════
     // EFFECTS
@@ -111,11 +115,12 @@ export default function useVoiceDiary() {
     const handleRoleSelect = (r) => {
         setRole(r)
         if (r === 'elderly') navigateTo('ELDERLY_ONBOARDING')
+        else if (r === 'recovery') navigateTo('ELDERLY_RECOVERY')
         else navigateTo('RELATIVE_LINKING')
     }
 
     const handleOnboardingNext = async () => {
-        if (onboardingStep < 5) {
+        if (onboardingStep < 6) {
             setOnboardingStep(s => s + 1)
         } else {
             if (user) {
@@ -136,35 +141,42 @@ export default function useVoiceDiary() {
         else navigateTo('ROLE_SELECTION')
     }
 
-    // ─── Recording Flow (Real STT + AI) ───
+    // ─── Recording Flow (Multimodal Audio → Gemini) ───
 
-    const handleStartRecording = () => {
+    const handleStartRecording = async () => {
         setRecordingTime(0)
         setIsRecording(true)
         setAiResult(null)
         navigateTo('ELDERLY_RECORDING')
 
-        // Start speech recognition with onStop callback
-        const started = speech.start(async (finalTranscript) => {
-            // Speech recognition ended (silence or manual stop)
+        // Start audio recording with onStop callback
+        const started = await audioRecorder.start(async (base64Audio, mimeType) => {
+            // Recording ended
             setIsRecording(false)
+
+            if (!base64Audio) {
+                // No audio captured
+                navigateTo('ELDERLY_DASHBOARD')
+                return
+            }
+
             navigateTo('ELDERLY_PROCESSING')
             setIsProcessingAI(true)
 
             let result
             try {
-                // Send transcript to Gemini AI
-                result = await analyzeSymptoms(finalTranscript)
+                // Send raw audio to Gemini multimodal API
+                result = await analyzeAudio(base64Audio, mimeType)
             } catch (err) {
                 console.error('AI analysis failed:', err)
                 result = {
-                    original_dialect: finalTranscript,
-                    clinical_summary: finalTranscript || 'ไม่สามารถวิเคราะห์ได้',
+                    original_dialect: 'ไม่สามารถวิเคราะห์ได้',
+                    clinical_summary: 'ไม่สามารถวิเคราะห์ได้',
                     severity: 'ปกติ',
                     severityColor: 'green',
                     mood: 'ไม่ระบุ',
                     advice: 'กรุณาปรึกษาแพทย์',
-                    transcript: finalTranscript,
+                    transcript: '',
                 }
             }
 
@@ -193,24 +205,55 @@ export default function useVoiceDiary() {
         })
 
         if (!started) {
-            // Browser doesn't support speech recognition
+            // Microphone access denied or unavailable
             setIsRecording(false)
             navigateTo('ELDERLY_DASHBOARD')
         }
     }
 
     const handleStopRecording = () => {
-        // Manually stop speech recognition — the onStop callback handles the rest
-        speech.stop()
+        audioRecorder.stop()
     }
 
     const handleCancelRecording = () => {
-        speech.stop()
+        audioRecorder.stop()
         setIsRecording(false)
         navigateTo('ELDERLY_DASHBOARD')
     }
 
 
+    // ─── Recovery Login ───
+
+    const handleRecoveryLogin = async () => {
+        const cleaned = recoveryPhone.replace(/[^0-9]/g, '')
+        if (cleaned.length < 9) {
+            alert('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง')
+            return
+        }
+        setIsSyncing(true)
+        try {
+            const profile = await queryElderlyByPhone(cleaned)
+            if (profile) {
+                setElderlyProfile({
+                    name: profile.name || '',
+                    age: profile.age || '',
+                    gender: profile.gender || '',
+                    phone: profile.phone || cleaned,
+                    diseases: profile.diseases || '',
+                    medications: profile.medications || '',
+                })
+                setPairingCode(profile.pairingCode || generatePairingCode())
+                setRole('elderly')
+                navigateTo('ELDERLY_DASHBOARD')
+            } else {
+                alert('ไม่พบเบอร์โทรนี้ในระบบ กรุณาตรวจสอบหรือลงทะเบียนใหม่')
+            }
+        } catch (err) {
+            console.error('Recovery error:', err)
+            alert('เกิดข้อผิดพลาด กรุณาลองใหม่')
+        }
+        setIsSyncing(false)
+    }
 
     // ─── Relative Handlers ───
 
@@ -282,15 +325,15 @@ export default function useVoiceDiary() {
         handleOnboardingNext, handleOnboardingBack,
         // Elderly - dashboard
         pairingCode, entries,
-        // Elderly - recording (real STT)
+        // Elderly - recording (multimodal audio)
         isRecording, recordingTime, formatTime,
         handleStartRecording, handleStopRecording, handleCancelRecording,
-        // Speech recognition state
-        transcript: speech.transcript,
-        interimTranscript: speech.interimTranscript,
-        speechError: speech.error,
+        // Audio recorder error
+        audioError: audioRecorder.error,
         // AI result
         aiResult, isProcessingAI,
+        // Recovery
+        recoveryPhone, setRecoveryPhone, handleRecoveryLogin,
         // Relative
         inputCode, linkedProfile, linkedPairingCode,
         handleKeypadPress, handleKeypadDelete, handleLink,

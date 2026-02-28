@@ -63,6 +63,7 @@ export const formatDiaryEntry = (e) => ({
 // ─── localStorage Persistence ───
 const PAIRING_CODE_KEY = 'voicecare_pairing_code'
 const ROLE_KEY = 'voicecare_role'
+const PROFILE_KEY = 'voicecare_profile'
 
 export const savePairingCodeToLocal = (code) => {
     localStorage.setItem(PAIRING_CODE_KEY, code)
@@ -80,6 +81,17 @@ export const loadRoleFromLocal = () => {
     return localStorage.getItem(ROLE_KEY) || null
 }
 
+export const saveProfileToLocal = (profile) => {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
+}
+
+export const loadProfileFromLocal = () => {
+    try {
+        const data = localStorage.getItem(PROFILE_KEY)
+        return data ? JSON.parse(data) : null
+    } catch { return null }
+}
+
 // ─── Firestore Operations ───
 
 // Save elderly profile (private + public lookup)
@@ -95,12 +107,16 @@ export const saveElderlyProfile = async (uid, profile, pairingCode) => {
         name: profile.name,
         age: profile.age,
         gender: profile.gender,
+        phone: (profile.phone || '').replace(/[^0-9]/g, ''),
         diseases: profile.diseases,
         medications: profile.medications,
         pairingCode,
         uid,
         createdAt: serverTimestamp(),
     })
+
+    // Persist profile to localStorage for recovery
+    saveProfileToLocal({ ...profile, pairingCode, uid })
 }
 
 // Save a diary entry
@@ -115,6 +131,15 @@ export const saveDiaryEntry = async (entry) => {
 // Query elderly profile by pairing code
 export const queryElderlyByPairingCode = async (pairingCode) => {
     const q = query(getUsersCollectionRef(), where('pairingCode', '==', pairingCode))
+    const snapshot = await getDocs(q)
+    if (snapshot.empty) return null
+    return snapshot.docs[0].data()
+}
+
+// Query elderly profile by phone number (for recovery/login)
+export const queryElderlyByPhone = async (phone) => {
+    const cleaned = phone.replace(/[^0-9]/g, '')
+    const q = query(getUsersCollectionRef(), where('phone', '==', cleaned))
     const snapshot = await getDocs(q)
     if (snapshot.empty) return null
     return snapshot.docs[0].data()
