@@ -151,13 +151,13 @@ export default function useVoiceDiary() {
             navigateTo('ELDERLY_PROCESSING')
             setIsProcessingAI(true)
 
+            let result
             try {
                 // Send transcript to Gemini AI
-                const result = await analyzeSymptoms(finalTranscript)
-                setAiResult(result)
+                result = await analyzeSymptoms(finalTranscript)
             } catch (err) {
                 console.error('AI analysis failed:', err)
-                setAiResult({
+                result = {
                     original_dialect: finalTranscript,
                     clinical_summary: finalTranscript || 'ไม่สามารถวิเคราะห์ได้',
                     severity: 'ปกติ',
@@ -165,7 +165,27 @@ export default function useVoiceDiary() {
                     mood: 'ไม่ระบุ',
                     advice: 'กรุณาปรึกษาแพทย์',
                     transcript: finalTranscript,
-                })
+                }
+            }
+
+            setAiResult(result)
+
+            // Auto-save to Firestore immediately (ป้องกันการปกปิดอาการจากญาติ)
+            if (user) {
+                try {
+                    await saveDiaryEntry({
+                        elderlyId: user.uid,
+                        pairingCode,
+                        originalText: result.original_dialect || result.transcript,
+                        clinicalSummary: result.clinical_summary,
+                        severity: result.severity,
+                        severityColor: result.severityColor,
+                        mood: result.mood,
+                        advice: result.advice,
+                    })
+                } catch (err) {
+                    console.error('Error auto-saving diary entry:', err)
+                }
             }
 
             setIsProcessingAI(false)
@@ -190,28 +210,7 @@ export default function useVoiceDiary() {
         navigateTo('ELDERLY_DASHBOARD')
     }
 
-    // ─── Save Entry (Real AI data) ───
 
-    const handleSaveEntry = async () => {
-        if (!user || !aiResult) return
-        setIsSyncing(true)
-        try {
-            await saveDiaryEntry({
-                elderlyId: user.uid,
-                pairingCode,
-                originalText: aiResult.original_dialect || aiResult.transcript,
-                clinicalSummary: aiResult.clinical_summary,
-                severity: aiResult.severity,
-                severityColor: aiResult.severityColor,
-                mood: aiResult.mood,
-                advice: aiResult.advice,
-            })
-        } catch (err) {
-            console.error('Error saving diary entry:', err)
-        }
-        setIsSyncing(false)
-        navigateTo('ELDERLY_DASHBOARD')
-    }
 
     // ─── Relative Handlers ───
 
@@ -292,7 +291,6 @@ export default function useVoiceDiary() {
         speechError: speech.error,
         // AI result
         aiResult, isProcessingAI,
-        handleSaveEntry,
         // Relative
         inputCode, linkedProfile, linkedPairingCode,
         handleKeypadPress, handleKeypadDelete, handleLink,
