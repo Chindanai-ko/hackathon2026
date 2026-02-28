@@ -9,6 +9,11 @@ import {
     queryElderlyByPhone,
     subscribeToDiaries,
     subscribeToDiariesByUid,
+    savePairingCodeToLocal,
+    loadPairingCodeFromLocal,
+    saveRoleToLocal,
+    loadRoleFromLocal,
+    loadProfileFromLocal,
 } from '../services/diaryService'
 import { analyzeAudio } from '../services/geminiService'
 import useAudioRecorder from './useAudioRecorder'
@@ -28,7 +33,9 @@ export default function useVoiceDiary() {
     const [elderlyProfile, setElderlyProfile] = useState({
         name: '', age: '', gender: '', phone: '', diseases: '', medications: ''
     })
-    const [pairingCode, setPairingCode] = useState(() => generatePairingCode())
+    const [pairingCode, setPairingCode] = useState(() => {
+        return loadPairingCodeFromLocal() || generatePairingCode()
+    })
     const [entries, setEntries] = useState([])
 
     // Recording state
@@ -70,14 +77,15 @@ export default function useVoiceDiary() {
         return () => unsubAuth()
     }, [])
 
-    // Elderly: Listen for own diary entries
+    // Elderly: Listen for own diary entries (by pairingCode for persistence)
     useEffect(() => {
-        if (!user || role !== 'elderly' || currentView !== 'ELDERLY_DASHBOARD') return
-        const unsub = subscribeToDiariesByUid(user.uid, (firestoreEntries) => {
+        if (role !== 'elderly' || !pairingCode) return
+        if (currentView !== 'ELDERLY_DASHBOARD') return
+        const unsub = subscribeToDiaries(pairingCode, (firestoreEntries) => {
             setEntries(firestoreEntries.map(formatDiaryEntry))
         })
         return () => unsub()
-    }, [user, role, currentView])
+    }, [pairingCode, role, currentView])
 
     // Relative: Listen for linked diary entries
     useEffect(() => {
@@ -98,6 +106,27 @@ export default function useVoiceDiary() {
         }
         return () => clearInterval(interval)
     }, [isRecording])
+
+    // Auto-restore profile from localStorage on mount
+    useEffect(() => {
+        const savedRole = loadRoleFromLocal()
+        const savedCode = loadPairingCodeFromLocal()
+        const savedProfile = loadProfileFromLocal()
+        if (savedRole === 'elderly' && savedCode && savedProfile) {
+            setRole('elderly')
+            setPairingCode(savedCode)
+            setElderlyProfile(p => ({
+                ...p,
+                name: savedProfile.name || '',
+                age: savedProfile.age || '',
+                gender: savedProfile.gender || '',
+                phone: savedProfile.phone || '',
+                diseases: savedProfile.diseases || '',
+                medications: savedProfile.medications || '',
+            }))
+            setCurrentView('ELDERLY_DASHBOARD')
+        }
+    }, [])
 
     // ═══════════════════════════════════
     // NAVIGATION
@@ -127,6 +156,9 @@ export default function useVoiceDiary() {
                 setIsSyncing(true)
                 try {
                     await saveElderlyProfile(user.uid, elderlyProfile, pairingCode)
+                    // Persist to localStorage for session recovery
+                    savePairingCodeToLocal(pairingCode)
+                    saveRoleToLocal('elderly')
                 } catch (err) {
                     console.error('Error saving profile:', err)
                 }
@@ -234,6 +266,7 @@ export default function useVoiceDiary() {
         try {
             const profile = await queryElderlyByPhone(cleaned)
             if (profile) {
+                const code = profile.pairingCode || generatePairingCode()
                 setElderlyProfile({
                     name: profile.name || '',
                     age: profile.age || '',
@@ -242,8 +275,11 @@ export default function useVoiceDiary() {
                     diseases: profile.diseases || '',
                     medications: profile.medications || '',
                 })
-                setPairingCode(profile.pairingCode || generatePairingCode())
+                setPairingCode(code)
                 setRole('elderly')
+                // Persist for session recovery
+                savePairingCodeToLocal(code)
+                saveRoleToLocal('elderly')
                 navigateTo('ELDERLY_DASHBOARD')
             } else {
                 alert('ไม่พบเบอร์โทรนี้ในระบบ กรุณาตรวจสอบหรือลงทะเบียนใหม่')
